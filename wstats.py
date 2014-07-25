@@ -2,7 +2,9 @@
 
 import gspread
 import sys, getopt
+import re
 from datetime import date, timedelta
+from os.path import expanduser
 
 # By default, returns yesterday's writing stats
 # words, goal, avg, consecutive days, total days
@@ -15,7 +17,7 @@ goal_flag = 0
 total_flag = 0
 word_flag = 0
 
-
+# Parse command line arguments
 try:
 	opts, args = getopt.getopt(sys.argv[1:], "acd:ghtw")
 except getopt.GetoptError:
@@ -41,20 +43,38 @@ if not wdate:
 	wdate = date.today() - timedelta(days=1)
 	wdate = wdate.strftime('%-m/%-d/%Y')
 
-# Login with Google account
-gc = gspread.login('jamietoddrubin@gmail.com', 'biwxydcgomnkyfsy')
-sh = gc.open_by_key('0AmEvY6JjICyzdFM1aUVCd0hvZmxmT185MGE0R0hrdWc')
+# Read .wstats.cfg in home directory for account information
+home = expanduser("~")
+cfg = home + "/.wstats.cfg"
 
-worksheet = sh.worksheet('Writing')
+lines = [line.strip() for line in open(cfg)]
+for line in lines:
+	tokens = re.split('=', line)
+	if (tokens[0] == 'google_address'):
+		gaddress = tokens[1]
+	elif (tokens[0] == 'google_pwd'):
+		gpwd = tokens[1]
+	elif (tokens[0] == 'writing_key'):
+		writing_key = tokens[1]
+	elif (tokens[0] == 'writing_sheet'):
+		writing_sheet = tokens[1]
+	elif (tokens[0] == 'record_sheet'):
+		record_sheet = tokens[1]
+
+# Login with Google account
+gc = gspread.login(gaddress, gpwd)
+sh = gc.open_by_key(writing_key)
+
+worksheet = sh.worksheet(writing_sheet)
 cell = worksheet.find(wdate)
 dictWriting = worksheet.row_values(cell.row)
 col_list = worksheet.col_values(1)
 
 # Set values
 totalDays = len(col_list) - 1
-words = dictWriting[1]
+words = dictWriting[3]
 try:
-	goal = dictWriting[3]
+	goal = dictWriting[5]
 except Exception:
 	goal = "Unk"
 	pass
@@ -63,11 +83,11 @@ writingDate = dictWriting[0]
 
 
 # look for days with 0 words
-record_sheet = sh.worksheet('Records')
+record_sheet = sh.worksheet(record_sheet)
 consecutiveDays = record_sheet.acell('D3').value
 
 try:
-	mov_avg = int(float(dictWriting[2]))
+	mov_avg = int(float(dictWriting[4]))
 except Exception:
 	mov_avg = "Unk"
 	pass
